@@ -1,3 +1,13 @@
 paths:
   "~^live/.+$":
     source: publisher
+
+    runOnReady: >
+      curl -s -X POST http://localhost:8080/api/hooks/mediamtx/ready
+      -H "Content-Type: application/json"
+      -d "{\"path\":\"$MTX_PATH\"}"
+
+    runOnNotReady: >
+      curl -s -X POST http://localhost:8080/api/hooks/mediamtx/not-ready
+      -H "Content-Type: application/json"
+      -d "{\"path\":\"$MTX_PATH\"}"

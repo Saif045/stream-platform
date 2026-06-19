@@ -1,7 +1,6 @@
 .PHONY: server mediamtx publish create start
 
-STREAM_ID ?= demo
-
+STREAM_ID ?= demo-$(shell date +%s)
 
 server:
 	go run ./cmd/server
@@ -24,3 +23,16 @@ start:
 	curl -X POST http://localhost:8080/api/live/streams/start \
 	-H "Content-Type: application/json" \
 	-d '{"id":"$(STREAM_ID)"}'
+
+
+migrate-up:
+	export $$(grep -v '^#' .env | xargs) && \
+	migrate -path migrations -database "$$DATABASE_URL" up
+
+# migrate-down:
+# 	export $$(grep -v '^#' .env | xargs) && \
+# 	migrate -path migrations -database "$$DATABASE_URL" down 1
+
+migrate-version:
+ 	export $$(grep -v '^#' .env | xargs) && \ 
+	migrate -path migrations -database "$$DATABASE_URL" version

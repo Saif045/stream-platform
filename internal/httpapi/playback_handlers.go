@@ -3,6 +3,7 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"stream-platform/internal/live"
 	"strings"
 )
 
@@ -10,18 +11,39 @@ const liveWindowSegments = 6
 
 func (s *Server) getLiveMasterPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	stream, err := s.liveService.GetStream(id)
+	if err != nil {
+		http.Error(w, "stream not found", http.StatusNotFound)
+		return
+	}
+
+	if stream.Status != live.StreamStatusRunning {
+		http.Error(w, "stream offline", http.StatusNotFound)
+		return
+	}
+
 	s.writeRewrittenMasterPlaylist(w, id, "live")
 }
 
 func (s *Server) getVODMasterPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+
 	s.writeRewrittenMasterPlaylist(w, id, "vod")
 }
 
 func (s *Server) getLiveVariantPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	quality := r.PathValue("quality")
+	stream, err := s.liveService.GetStream(id)
+	if err != nil {
+		http.Error(w, "stream not found", http.StatusNotFound)
+		return
+	}
 
+	if stream.Status != live.StreamStatusRunning {
+		http.Error(w, "stream offline", http.StatusNotFound)
+		return
+	}
 	data, err := s.store.ReadHLSVariantPlaylist(id, quality)
 	if err != nil {
 		http.Error(w, "playlist not found", http.StatusNotFound)
@@ -46,6 +68,13 @@ func (s *Server) getVODVariantPlaylist(w http.ResponseWriter, r *http.Request) {
 
 	playlist := rewriteSegmentPaths(string(data), id, quality)
 	playlist = markPlaylistAsEvent(playlist)
+
+	stream, err := s.liveService.GetStream(id)
+	if err == nil {
+		if stream.Status == live.StreamStatusStopped || stream.Status == live.StreamStatusFailed {
+			playlist = markPlaylistEnded(playlist)
+		}
+	}
 
 	writeM3U8(w, playlist)
 }
@@ -207,4 +236,11 @@ func markPlaylistAsEvent(playlist string) string {
 	}
 
 	return strings.Join(out, "\n")
+}
+func markPlaylistEnded(playlist string) string {
+	if strings.Contains(playlist, "#EXT-X-ENDLIST") {
+		return playlist
+	}
+
+	return strings.TrimRight(playlist, "\n") + "\n#EXT-X-ENDLIST\n"
 }

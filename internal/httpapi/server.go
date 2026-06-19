@@ -42,6 +42,11 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /streams/{id}/live/{quality}/playlist.m3u8", s.getLiveVariantPlaylist)
 	mux.HandleFunc("GET /streams/{id}/vod/{quality}/playlist.m3u8", s.getVODVariantPlaylist)
 
+	mux.HandleFunc("POST /api/hooks/mediamtx/ready", s.mediaMTXReady)
+	mux.HandleFunc("POST /api/hooks/mediamtx/not-ready", s.mediaMTXNotReady)
+	mux.HandleFunc("GET /watch/{id}/live", s.watchLive)
+	mux.HandleFunc("GET /watch/{id}/vod", s.watchVOD)
+
 	fileServer := http.FileServer(http.Dir(s.store.StreamsRoot()))
 	mux.Handle("/streams/{id}/hls/", http.StripPrefix("/streams/", fileServer))
 

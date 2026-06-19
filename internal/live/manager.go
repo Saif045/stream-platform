@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sync"
+	"time"
 
 	"stream-platform/internal/ffmpeg"
 	"stream-platform/internal/storage"
@@ -13,140 +14,74 @@ import (
 
 const rtmpBaseURL = "rtmp://localhost/live"
 
-type StreamStatus string
-
-const (
-	StreamStatusCreated StreamStatus = "created"
-	StreamStatusRunning StreamStatus = "running"
-	StreamStatusStopped StreamStatus = "stopped"
-	StreamStatusFailed  StreamStatus = "failed"
-)
-
-type Stream struct {
-	ID        string       `json:"id"`
-	StreamKey string       `json:"stream_key,omitempty"`
-	RTMPURL   string       `json:"rtmp_url"`
-	OutputDir string       `json:"output_dir"`
-	LiveURL   string       `json:"live_url"`
-	VODURL    string       `json:"vod_url"`
-	Status    StreamStatus `json:"status"`
-	Error     string       `json:"error,omitempty"`
-
-	cmd *exec.Cmd
-}
-
 type Manager struct {
-	mu      sync.Mutex
-	runner  *ffmpeg.Runner
-	paths   *storage.Store
-	streams map[string]*Stream
+	runner *ffmpeg.Runner
+	store  *storage.Store
+	repo   Repository
+
+	processesMu sync.Mutex
+	processes   map[string]*exec.Cmd
 }
 
-func NewManager(runner *ffmpeg.Runner, paths *storage.Store) *Manager {
+func NewManager(runner *ffmpeg.Runner, store *storage.Store, repo Repository) *Manager {
 	return &Manager{
-		runner:  runner,
-		paths:   paths,
-		streams: make(map[string]*Stream),
+		runner:    runner,
+		store:     store,
+		repo:      repo,
+		processes: make(map[string]*exec.Cmd),
 	}
 }
-
-func (m *Manager) CreateStream(id string) (*Stream, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, exists := m.streams[id]; exists {
-		return nil, fmt.Errorf("live stream already exists: %s", id)
-	}
-
-	streamKey, err := generateStreamKey()
-	if err != nil {
-		return nil, fmt.Errorf("generate stream key: %w", err)
-	}
-
-	outputDir := m.paths.StreamDir(id)
-	rtmpURL := fmt.Sprintf("%s/%s", rtmpBaseURL, streamKey)
-
-	stream := &Stream{
-		ID:        id,
-		StreamKey: streamKey,
-		RTMPURL:   rtmpURL,
-		OutputDir: outputDir,
-		LiveURL:   "/streams/" + id + "/live/master.m3u8",
-		VODURL:    "/streams/" + id + "/vod/master.m3u8",
-		Status:    StreamStatusCreated,
-	}
-
-	m.streams[id] = stream
-
-	return stream, nil
-}
-
 func (m *Manager) StartStream(id string) error {
-	m.mu.Lock()
-
-	stream, exists := m.streams[id]
-	if !exists {
-		m.mu.Unlock()
-		return fmt.Errorf("live stream not found: %s", id)
-	}
-
-	if stream.Status == StreamStatusRunning {
-		m.mu.Unlock()
-		return fmt.Errorf("live stream already running: %s", id)
-	}
-
-	cmd, err := m.runner.StartLiveHLS(stream.RTMPURL, stream.OutputDir)
+	stream, err := m.repo.GetByID(id)
 	if err != nil {
-		m.mu.Unlock()
 		return err
 	}
 
-	stream.cmd = cmd
+	if stream.Status == StreamStatusRunning {
+		return fmt.Errorf("live stream already running: %s", id)
+	}
+
+	stream = m.hydrateStream(stream)
+
+	cmd, err := m.runner.StartLiveHLS(stream.RTMPURL, stream.OutputDir)
+	if err != nil {
+		return err
+	}
+
+	m.processesMu.Lock()
+	m.processes[id] = cmd
+	m.processesMu.Unlock()
+
+	now := time.Now().UTC()
+
 	stream.Status = StreamStatusRunning
 	stream.Error = ""
+	stream.StartedAt = &now
+	stream.StoppedAt = nil
 
-	m.mu.Unlock()
+	if err := m.repo.Update(stream); err != nil {
+		return err
+	}
 
-	go m.waitForStream(stream)
+	go m.waitForStream(id, cmd)
 
 	return nil
 }
 
-func (m *Manager) waitForStream(stream *Stream) {
-	err := stream.cmd.Wait()
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if stream.Status == StreamStatusStopped {
-		return
-	}
-
-	if err != nil {
-		stream.Status = StreamStatusFailed
-		stream.Error = err.Error()
-		return
-	}
-
-	stream.Status = StreamStatusStopped
-}
-
 func (m *Manager) StopStream(id string) error {
-	m.mu.Lock()
-
-	stream, exists := m.streams[id]
-	if !exists {
-		m.mu.Unlock()
-		return fmt.Errorf("live stream not found: %s", id)
+	stream, err := m.repo.GetByID(id)
+	if err != nil {
+		return err
 	}
 
 	if stream.Status != StreamStatusRunning {
-		m.mu.Unlock()
 		return fmt.Errorf("live stream is not running: %s", id)
 	}
 
-	cmd := stream.cmd
-	m.mu.Unlock()
+	m.processesMu.Lock()
+	cmd := m.processes[id]
+	delete(m.processes, id)
+	m.processesMu.Unlock()
 
 	if cmd == nil || cmd.Process == nil {
 		return fmt.Errorf("live stream process missing: %s", id)
@@ -156,24 +91,119 @@ func (m *Manager) StopStream(id string) error {
 		return fmt.Errorf("kill ffmpeg process: %w", err)
 	}
 
-	m.mu.Lock()
-	stream.Status = StreamStatusStopped
-	m.mu.Unlock()
+	now := time.Now().UTC()
 
-	return nil
+	stream.Status = StreamStatusStopped
+	stream.Error = ""
+	stream.StoppedAt = &now
+
+	return m.repo.Update(stream)
+}
+
+func (m *Manager) waitForStream(id string, cmd *exec.Cmd) {
+	err := cmd.Wait()
+
+	m.processesMu.Lock()
+	current := m.processes[id]
+	if current == cmd {
+		delete(m.processes, id)
+	}
+	m.processesMu.Unlock()
+
+	stream, getErr := m.repo.GetByID(id)
+	if getErr != nil {
+		return
+	}
+
+	if stream.Status == StreamStatusStopped {
+		return
+	}
+
+	now := time.Now().UTC()
+
+	if err != nil {
+		stream.Status = StreamStatusFailed
+		stream.Error = err.Error()
+		stream.StoppedAt = &now
+		_ = m.repo.Update(stream)
+		return
+	}
+
+	stream.Status = StreamStatusStopped
+	stream.Error = ""
+	stream.StoppedAt = &now
+	_ = m.repo.Update(stream)
+}
+
+func (m *Manager) MarkStreamDisconnectedByKey(streamKey string) error {
+	stream, err := m.repo.GetByStreamKey(streamKey)
+	if err != nil {
+		return err
+	}
+
+	if stream.Status != StreamStatusRunning {
+		return nil
+	}
+
+	now := time.Now().UTC()
+
+	stream.Status = StreamStatusStopped
+	stream.Error = ""
+	stream.StoppedAt = &now
+
+	return m.repo.Update(stream)
+}
+
+func (m *Manager) CreateStream(id string) (*Stream, error) {
+	streamKey, err := generateStreamKey()
+	if err != nil {
+		return nil, fmt.Errorf("generate stream key: %w", err)
+	}
+
+	stream := &Stream{
+		ID:        id,
+		StreamKey: streamKey,
+		Status:    StreamStatusCreated,
+	}
+
+	if err := m.repo.Create(stream); err != nil {
+		return nil, err
+	}
+
+	return m.hydrateStream(stream), nil
+}
+
+func (m *Manager) StartStreamByKey(streamKey string) error {
+	stream, err := m.repo.GetByStreamKey(streamKey)
+	if err != nil {
+		return err
+	}
+
+	return m.StartStream(stream.ID)
+}
+
+func (m *Manager) GetStream(id string) (*Stream, error) {
+	stream, err := m.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.hydrateStream(stream), nil
 }
 
 func (m *Manager) ListStreams() []*Stream {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	streams, err := m.repo.List()
+	if err != nil {
+		return []*Stream{}
+	}
 
-	streams := make([]*Stream, 0, len(m.streams))
-	for _, stream := range m.streams {
-		streams = append(streams, stream)
+	for _, stream := range streams {
+		m.hydrateStream(stream)
 	}
 
 	return streams
 }
+
 
 func generateStreamKey() (string, error) {
 	buf := make([]byte, 32)
@@ -183,4 +213,12 @@ func generateStreamKey() (string, error) {
 	}
 
 	return hex.EncodeToString(buf), nil
+}
+func (m *Manager) hydrateStream(stream *Stream) *Stream {
+	stream.RTMPURL = fmt.Sprintf("%s/%s", rtmpBaseURL, stream.StreamKey)
+	stream.OutputDir = m.store.StreamDir(stream.ID)
+	stream.LiveURL = "/watch/" + stream.ID + "/live"
+	stream.VODURL = "/watch/" + stream.ID + "/vod"
+
+	return stream
 }
