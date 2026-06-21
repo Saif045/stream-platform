@@ -6,4 +6,6 @@ type Repository interface {
 	GetByStreamKey(streamKey string) (*Stream, error)
 	List() ([]*Stream, error)
 	Update(stream *Stream) error
+	ListByChannelID(channelID string) ([]*Stream, error)
+	GetLatestByChannelID(channelID string) (*Stream, error)
 }

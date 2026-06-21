@@ -23,14 +23,16 @@ func (r *PostgresRepository) Create(stream *Stream) error {
 		`
 		INSERT INTO streams (
 			id,
+			channel_id,
 			stream_key,
 			status,
 			error
 		)
-		VALUES ($1, $2, $3, $4)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING created_at
 		`,
 		stream.ID,
+		stream.ChannelID,
 		stream.StreamKey,
 		stream.Status,
 		nilIfEmpty(stream.Error),
@@ -42,12 +44,12 @@ func (r *PostgresRepository) Create(stream *Stream) error {
 
 	return nil
 }
-
 func (r *PostgresRepository) GetByID(id string) (*Stream, error) {
 	return r.getOne(
 		`
 		SELECT
 			id,
+			channel_id,
 			stream_key,
 			status,
 			COALESCE(error, ''),
@@ -66,6 +68,7 @@ func (r *PostgresRepository) GetByStreamKey(streamKey string) (*Stream, error) {
 		`
 		SELECT
 			id,
+			channel_id,
 			stream_key,
 			status,
 			COALESCE(error, ''),
@@ -85,6 +88,7 @@ func (r *PostgresRepository) List() ([]*Stream, error) {
 		`
 		SELECT
 			id,
+			channel_id,
 			stream_key,
 			status,
 			COALESCE(error, ''),
@@ -107,6 +111,7 @@ func (r *PostgresRepository) List() ([]*Stream, error) {
 
 		if err := rows.Scan(
 			&stream.ID,
+			&stream.ChannelID,
 			&stream.StreamKey,
 			&stream.Status,
 			&stream.Error,
@@ -161,6 +166,7 @@ func (r *PostgresRepository) getOne(query string, arg string) (*Stream, error) {
 
 	err := r.db.QueryRow(context.Background(), query, arg).Scan(
 		&stream.ID,
+		&stream.ChannelID,
 		&stream.StreamKey,
 		&stream.Status,
 		&stream.Error,
@@ -181,4 +187,73 @@ func nilIfEmpty(value string) *string {
 	}
 
 	return &value
+}
+func (r *PostgresRepository) ListByChannelID(channelID string) ([]*Stream, error) {
+	rows, err := r.db.Query(
+		context.Background(),
+		`
+		SELECT
+			id,
+			channel_id,
+			stream_key,
+			status,
+			COALESCE(error, ''),
+			created_at,
+			started_at,
+			stopped_at
+		FROM streams
+		WHERE channel_id = $1
+		ORDER BY created_at DESC
+		`,
+		channelID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list streams by channel: %w", err)
+	}
+	defer rows.Close()
+
+	streams := make([]*Stream, 0)
+
+	for rows.Next() {
+		stream := &Stream{}
+		if err := rows.Scan(
+			&stream.ID,
+			&stream.ChannelID,
+			&stream.StreamKey,
+			&stream.Status,
+			&stream.Error,
+			&stream.CreatedAt,
+			&stream.StartedAt,
+			&stream.StoppedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan stream: %w", err)
+		}
+		streams = append(streams, stream)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate streams: %w", err)
+	}
+
+	return streams, nil
+}
+func (r *PostgresRepository) GetLatestByChannelID(channelID string) (*Stream, error) {
+	return r.getOne(
+		`
+		SELECT
+			id,
+			channel_id,
+			stream_key,
+			status,
+			COALESCE(error, ''),
+			created_at,
+			started_at,
+			stopped_at
+		FROM streams
+		WHERE channel_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+		`,
+		channelID,
+	)
 }

@@ -3,26 +3,30 @@ package httpapi
 import (
 	"net/http"
 
+	"stream-platform/internal/channel"
 	"stream-platform/internal/live"
 	"stream-platform/internal/storage"
 	"stream-platform/internal/vod"
 )
 
 type Server struct {
-	liveService *live.Service
-	vodService  *vod.Service
-	store       *storage.Store
+	liveService    *live.Service
+	vodService     *vod.Service
+	store          *storage.Store
+	channelService *channel.Service
 }
 
 func NewServer(
 	liveService *live.Service,
 	vodService *vod.Service,
+	channelService *channel.Service,
 	store *storage.Store,
 ) *Server {
 	return &Server{
-		liveService: liveService,
-		vodService:  vodService,
-		store:       store,
+		liveService:    liveService,
+		vodService:     vodService,
+		channelService: channelService,
+		store:          store,
 	}
 }
 
@@ -46,6 +50,12 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/hooks/mediamtx/not-ready", s.mediaMTXNotReady)
 	mux.HandleFunc("GET /watch/{id}/live", s.watchLive)
 	mux.HandleFunc("GET /watch/{id}/vod", s.watchVOD)
+	mux.HandleFunc("GET /channels/{slug}/watch", s.watchChannel)
+
+	mux.HandleFunc("POST /api/channels", s.createChannel)
+	mux.HandleFunc("GET /api/channels", s.listChannels)
+	mux.HandleFunc("GET /api/channels/{id}/streams", s.listChannelStreams)
+	mux.HandleFunc("GET /api/channels/slug/{slug}/streams", s.listChannelStreamsBySlug)
 
 	fileServer := http.FileServer(http.Dir(s.store.StreamsRoot()))
 	mux.Handle("/streams/{id}/hls/", http.StripPrefix("/streams/", fileServer))

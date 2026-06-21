@@ -154,7 +154,7 @@ func (m *Manager) MarkStreamDisconnectedByKey(streamKey string) error {
 	return m.repo.Update(stream)
 }
 
-func (m *Manager) CreateStream(id string) (*Stream, error) {
+func (m *Manager) CreateStream(id string, channelID string) (*Stream, error) {
 	streamKey, err := generateStreamKey()
 	if err != nil {
 		return nil, fmt.Errorf("generate stream key: %w", err)
@@ -162,6 +162,7 @@ func (m *Manager) CreateStream(id string) (*Stream, error) {
 
 	stream := &Stream{
 		ID:        id,
+		ChannelID: channelID,
 		StreamKey: streamKey,
 		Status:    StreamStatusCreated,
 	}
@@ -204,7 +205,6 @@ func (m *Manager) ListStreams() []*Stream {
 	return streams
 }
 
-
 func generateStreamKey() (string, error) {
 	buf := make([]byte, 32)
 
@@ -221,4 +221,24 @@ func (m *Manager) hydrateStream(stream *Stream) *Stream {
 	stream.VODURL = "/watch/" + stream.ID + "/vod"
 
 	return stream
+}
+func (m *Manager) ListStreamsByChannelID(channelID string) ([]*Stream, error) {
+	streams, err := m.repo.ListByChannelID(channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, stream := range streams {
+		m.hydrateStream(stream)
+	}
+
+	return streams, nil
+}
+func (m *Manager) GetLatestStreamByChannelID(channelID string) (*Stream, error) {
+	stream, err := m.repo.GetLatestByChannelID(channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	return m.hydrateStream(stream), nil
 }

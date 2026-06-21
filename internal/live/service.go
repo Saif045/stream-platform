@@ -8,8 +8,8 @@ func NewService(manager *Manager) *Service {
 	return &Service{manager: manager}
 }
 
-func (s *Service) CreateStream(id string) (*Stream, error) {
-	return s.manager.CreateStream(id)
+func (s *Service) CreateStream(id string, channelID string) (*Stream, error) {
+	return s.manager.CreateStream(id, channelID)
 }
 
 func (s *Service) StartStream(id string) error {
@@ -32,4 +32,11 @@ func (s *Service) MarkStreamDisconnectedByKey(streamKey string) error {
 }
 func (s *Service) GetStream(id string) (*Stream, error) {
 	return s.manager.GetStream(id)
+}
+
+func (s *Service) ListStreamsByChannelID(channelID string) ([]*Stream, error) {
+	return s.manager.ListStreamsByChannelID(channelID)
+}
+func (s *Service) GetLatestStreamByChannelID(channelID string) (*Stream, error) {
+	return s.manager.GetLatestStreamByChannelID(channelID)
 }

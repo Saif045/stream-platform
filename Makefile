@@ -1,6 +1,9 @@
 .PHONY: server mediamtx publish create start
 
 STREAM_ID ?= demo-$(shell date +%s)
+CHANNEL_ID ?= channel-saif
+
+
 
 server:
 	go run ./cmd/server
@@ -11,7 +14,7 @@ mediamtx:
 create:
 	curl -s -X POST http://localhost:8080/api/live/streams/create \
 	-H "Content-Type: application/json" \
-	-d '{"id":"$(STREAM_ID)"}' | tee .stream.json
+	-d '{"id":"$(STREAM_ID)","channel_id":"$(CHANNEL_ID)"}' | tee .stream.json
 
 publish:
 	ffmpeg -re -stream_loop -1 -i test.mp4 \
@@ -26,13 +29,10 @@ start:
 
 
 migrate-up:
-	export $$(grep -v '^#' .env | xargs) && \
-	migrate -path migrations -database "$$DATABASE_URL" up
-
-# migrate-down:
-# 	export $$(grep -v '^#' .env | xargs) && \
-# 	migrate -path migrations -database "$$DATABASE_URL" down 1
+	. ./.env && migrate -path migrations -database "$$MIGRATION_DATABASE_URL" up
 
 migrate-version:
- 	export $$(grep -v '^#' .env | xargs) && \ 
-	migrate -path migrations -database "$$DATABASE_URL" version
+	. ./.env && migrate -path migrations -database "$$MIGRATION_DATABASE_URL" version
+
+migrate-down:
+	. ./.env && migrate -path migrations -database "$$MIGRATION_DATABASE_URL" down 1

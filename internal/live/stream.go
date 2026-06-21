@@ -13,6 +13,7 @@ const (
 
 type Stream struct {
 	ID        string       `json:"id"`
+	ChannelID string       `json:"channel_id"`
 	StreamKey string       `json:"stream_key,omitempty"`
 	Status    StreamStatus `json:"status"`
 	Error     string       `json:"error,omitempty"`

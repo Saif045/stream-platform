@@ -6,7 +6,8 @@ import (
 )
 
 type CreateLiveStreamRequest struct {
-	ID string `json:"id"`
+	ID        string `json:"id"`
+	ChannelID string `json:"channel_id"`
 }
 
 type StartLiveStreamRequest struct {
@@ -25,8 +26,12 @@ func (s *Server) createLiveStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing live stream id", http.StatusBadRequest)
 		return
 	}
+	if req.ChannelID == "" {
+		http.Error(w, "missing channel id", http.StatusBadRequest)
+		return
+	}
 
-	stream, err := s.liveService.CreateStream(req.ID)
+	stream, err := s.liveService.CreateStream(req.ID, req.ChannelID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
 		return

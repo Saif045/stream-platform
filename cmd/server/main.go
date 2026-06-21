@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"stream-platform/internal/channel"
 	"stream-platform/internal/config"
 	"stream-platform/internal/ffmpeg"
 	"stream-platform/internal/httpapi"
@@ -35,13 +36,16 @@ func main() {
 	runner := ffmpeg.NewRunner()
 	store := storage.NewStore(cfg.DataDir)
 
-	repo := live.NewPostgresRepository(db)
+	liveRepo := live.NewPostgresRepository(db)
 
-	liveManager := live.NewManager(runner, store, repo)
+	liveManager := live.NewManager(runner, store, liveRepo)
 	liveService := live.NewService(liveManager)
 	vodService := vod.NewService(store)
 
-	server := httpapi.NewServer(liveService, vodService, store)
+	channelRepo := channel.NewPostgresRepository(db)
+	channelService := channel.NewService(channelRepo)
+
+	server := httpapi.NewServer(liveService, vodService, channelService, store)
 
 	fmt.Println("server listening on", cfg.HTTPAddr)
 
