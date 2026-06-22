@@ -4,93 +4,78 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"stream-platform/internal/channel"
+	"stream-platform/internal/auth"
 )
 
-type CreateChannelRequest struct {
-	ID        string `json:"id"`
-	ChannelID string `json:"channel_id"`
-	UserID    string `json:"user_id"`
-	Slug      string `json:"slug"`
+type createChannelRequest struct {
+	Slug string `json:"slug"`
 }
 
 func (s *Server) createChannel(w http.ResponseWriter, r *http.Request) {
-	var req CreateChannelRequest
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req createChannelRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
-	if req.ID == "" {
-		http.Error(w, "missing channel id", http.StatusBadRequest)
+	channel, err := s.channelService.Create(r.Context(), userID, req.Slug)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if req.UserID == "" {
-		http.Error(w, "missing user id", http.StatusBadRequest)
-		return
-	}
-
-	if req.Slug == "" {
-		http.Error(w, "missing channel slug", http.StatusBadRequest)
-		return
-	}
-
-	ch := &channel.Channel{
-		ID:     req.ID,
-		UserID: req.UserID,
-		Slug:   req.Slug,
-	}
-
-	if err := s.channelService.Create(ch); err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-
-	writeJSON(w, http.StatusCreated, ch)
+	writeJSON(w, http.StatusCreated, channel)
 }
 
 func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
-	channels, err := s.channelService.List()
+	channels, err := s.channelService.List(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	writeJSON(w, http.StatusOK, channels)
 }
+
 func (s *Server) listChannelStreams(w http.ResponseWriter, r *http.Request) {
 	channelID := r.PathValue("id")
 	if channelID == "" {
-		http.Error(w, "missing channel id", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "missing channel id")
 		return
 	}
 
-	streams, err := s.liveService.ListStreamsByChannelID(channelID)
+	streams, err := s.liveService.ListStreamsByChannelID(r.Context(), channelID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	writeJSON(w, http.StatusOK, streams)
 }
+
 func (s *Server) listChannelStreamsBySlug(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if slug == "" {
-		http.Error(w, "missing channel slug", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "missing channel slug")
 		return
 	}
 
-	ch, err := s.channelService.GetBySlug(slug)
+	channel, err := s.channelService.GetBySlug(r.Context(), slug)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
-	streams, err := s.liveService.ListStreamsByChannelID(ch.ID)
+	streams, err := s.liveService.ListStreamsByChannelID(r.Context(), channel.ID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 

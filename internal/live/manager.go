@@ -1,8 +1,7 @@
 package live
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"context"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -15,24 +14,25 @@ import (
 const rtmpBaseURL = "rtmp://localhost/live"
 
 type Manager struct {
-	runner *ffmpeg.Runner
-	store  *storage.Store
-	repo   Repository
+	runner      *ffmpeg.Runner
+	store       *storage.Store
+	streamStore Store
 
 	processesMu sync.Mutex
 	processes   map[string]*exec.Cmd
 }
 
-func NewManager(runner *ffmpeg.Runner, store *storage.Store, repo Repository) *Manager {
+func NewManager(runner *ffmpeg.Runner, store *storage.Store, streamStore Store) *Manager {
 	return &Manager{
-		runner:    runner,
-		store:     store,
-		repo:      repo,
-		processes: make(map[string]*exec.Cmd),
+		runner:      runner,
+		store:       store,
+		streamStore: streamStore,
+		processes:   make(map[string]*exec.Cmd),
 	}
 }
-func (m *Manager) StartStream(id string) error {
-	stream, err := m.repo.GetByID(id)
+
+func (m *Manager) StartStream(ctx context.Context, id string) error {
+	stream, err := m.streamStore.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (m *Manager) StartStream(id string) error {
 	stream.StartedAt = &now
 	stream.StoppedAt = nil
 
-	if err := m.repo.Update(stream); err != nil {
+	if err := m.streamStore.Update(ctx, stream); err != nil {
 		return err
 	}
 
@@ -68,8 +68,8 @@ func (m *Manager) StartStream(id string) error {
 	return nil
 }
 
-func (m *Manager) StopStream(id string) error {
-	stream, err := m.repo.GetByID(id)
+func (m *Manager) StopStream(ctx context.Context, id string) error {
+	stream, err := m.streamStore.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -87,17 +87,21 @@ func (m *Manager) StopStream(id string) error {
 		return fmt.Errorf("live stream process missing: %s", id)
 	}
 
-	if err := cmd.Process.Kill(); err != nil {
-		return fmt.Errorf("kill ffmpeg process: %w", err)
-	}
-
 	now := time.Now().UTC()
 
 	stream.Status = StreamStatusStopped
 	stream.Error = ""
 	stream.StoppedAt = &now
 
-	return m.repo.Update(stream)
+	if err := m.streamStore.Update(ctx, stream); err != nil {
+		return err
+	}
+
+	if err := cmd.Process.Kill(); err != nil {
+		return fmt.Errorf("kill ffmpeg process: %w", err)
+	}
+
+	return nil
 }
 
 func (m *Manager) waitForStream(id string, cmd *exec.Cmd) {
@@ -110,7 +114,9 @@ func (m *Manager) waitForStream(id string, cmd *exec.Cmd) {
 	}
 	m.processesMu.Unlock()
 
-	stream, getErr := m.repo.GetByID(id)
+	ctx := context.Background()
+
+	stream, getErr := m.streamStore.GetByID(ctx, id)
 	if getErr != nil {
 		return
 	}
@@ -125,18 +131,27 @@ func (m *Manager) waitForStream(id string, cmd *exec.Cmd) {
 		stream.Status = StreamStatusFailed
 		stream.Error = err.Error()
 		stream.StoppedAt = &now
-		_ = m.repo.Update(stream)
+		_ = m.streamStore.Update(ctx, stream)
 		return
 	}
 
 	stream.Status = StreamStatusStopped
 	stream.Error = ""
 	stream.StoppedAt = &now
-	_ = m.repo.Update(stream)
+	_ = m.streamStore.Update(ctx, stream)
 }
 
-func (m *Manager) MarkStreamDisconnectedByKey(streamKey string) error {
-	stream, err := m.repo.GetByStreamKey(streamKey)
+func (m *Manager) StartStreamByKey(ctx context.Context, streamKey string) error {
+	stream, err := m.streamStore.GetByStreamKey(ctx, streamKey)
+	if err != nil {
+		return err
+	}
+
+	return m.StartStream(ctx, stream.ID)
+}
+
+func (m *Manager) MarkStreamDisconnectedByKey(ctx context.Context, streamKey string) error {
+	stream, err := m.streamStore.GetByStreamKey(ctx, streamKey)
 	if err != nil {
 		return err
 	}
@@ -151,69 +166,13 @@ func (m *Manager) MarkStreamDisconnectedByKey(streamKey string) error {
 	stream.Error = ""
 	stream.StoppedAt = &now
 
-	return m.repo.Update(stream)
+	return m.streamStore.Update(ctx, stream)
 }
 
-func (m *Manager) CreateStream(id string, channelID string) (*Stream, error) {
-	streamKey, err := generateStreamKey()
-	if err != nil {
-		return nil, fmt.Errorf("generate stream key: %w", err)
-	}
-
-	stream := &Stream{
-		ID:        id,
-		ChannelID: channelID,
-		StreamKey: streamKey,
-		Status:    StreamStatusCreated,
-	}
-
-	if err := m.repo.Create(stream); err != nil {
-		return nil, err
-	}
-
-	return m.hydrateStream(stream), nil
+func (m *Manager) HydrateStream(stream *Stream) *Stream {
+	return m.hydrateStream(stream)
 }
 
-func (m *Manager) StartStreamByKey(streamKey string) error {
-	stream, err := m.repo.GetByStreamKey(streamKey)
-	if err != nil {
-		return err
-	}
-
-	return m.StartStream(stream.ID)
-}
-
-func (m *Manager) GetStream(id string) (*Stream, error) {
-	stream, err := m.repo.GetByID(id)
-	if err != nil {
-		return nil, err
-	}
-
-	return m.hydrateStream(stream), nil
-}
-
-func (m *Manager) ListStreams() []*Stream {
-	streams, err := m.repo.List()
-	if err != nil {
-		return []*Stream{}
-	}
-
-	for _, stream := range streams {
-		m.hydrateStream(stream)
-	}
-
-	return streams
-}
-
-func generateStreamKey() (string, error) {
-	buf := make([]byte, 32)
-
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-
-	return hex.EncodeToString(buf), nil
-}
 func (m *Manager) hydrateStream(stream *Stream) *Stream {
 	stream.RTMPURL = fmt.Sprintf("%s/%s", rtmpBaseURL, stream.StreamKey)
 	stream.OutputDir = m.store.StreamDir(stream.ID)
@@ -221,24 +180,4 @@ func (m *Manager) hydrateStream(stream *Stream) *Stream {
 	stream.VODURL = "/watch/" + stream.ID + "/vod"
 
 	return stream
-}
-func (m *Manager) ListStreamsByChannelID(channelID string) ([]*Stream, error) {
-	streams, err := m.repo.ListByChannelID(channelID)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, stream := range streams {
-		m.hydrateStream(stream)
-	}
-
-	return streams, nil
-}
-func (m *Manager) GetLatestStreamByChannelID(channelID string) (*Stream, error) {
-	stream, err := m.repo.GetLatestByChannelID(channelID)
-	if err != nil {
-		return nil, err
-	}
-
-	return m.hydrateStream(stream), nil
 }

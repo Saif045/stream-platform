@@ -6,6 +6,9 @@ type Config struct {
 	HTTPAddr    string
 	DatabaseURL string
 	DataDir     string
+
+	JWTSecret  string
+	HookSecret string
 }
 
 func Load() Config {
@@ -13,6 +16,9 @@ func Load() Config {
 		HTTPAddr:    envOrDefault("HTTP_ADDR", ":8080"),
 		DatabaseURL: requiredEnv("DATABASE_URL"),
 		DataDir:     envOrDefault("DATA_DIR", "data"),
+
+		JWTSecret:  requiredEnv("JWT_SECRET"),
+		HookSecret: requiredEnv("HOOK_SECRET"),
 	}
 }
 

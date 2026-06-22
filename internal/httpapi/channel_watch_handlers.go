@@ -5,19 +5,19 @@ import "net/http"
 func (s *Server) watchChannel(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if slug == "" {
-		http.Error(w, "missing channel slug", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "missing channel slug")
 		return
 	}
 
-	ch, err := s.channelService.GetBySlug(slug)
+	ch, err := s.channelService.GetBySlug(r.Context(), slug)
 	if err != nil {
-		http.Error(w, "channel not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "channel not found")
 		return
 	}
 
-	stream, err := s.liveService.GetLatestStreamByChannelID(ch.ID)
+	stream, err := s.liveService.GetLatestStreamByChannelID(r.Context(), ch.ID)
 	if err != nil {
-		http.Error(w, "no streams found for channel", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "no streams found for channel")
 		return
 	}
 

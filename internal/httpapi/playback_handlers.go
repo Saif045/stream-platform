@@ -11,14 +11,14 @@ const liveWindowSegments = 6
 
 func (s *Server) getLiveMasterPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	stream, err := s.liveService.GetStream(id)
+	stream, err := s.liveService.GetStream(r.Context(), id)
 	if err != nil {
-		http.Error(w, "stream not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "stream not found")
 		return
 	}
 
 	if stream.Status != live.StreamStatusRunning {
-		http.Error(w, "stream offline", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "stream offline")
 		return
 	}
 
@@ -34,19 +34,19 @@ func (s *Server) getVODMasterPlaylist(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getLiveVariantPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	quality := r.PathValue("quality")
-	stream, err := s.liveService.GetStream(id)
+	stream, err := s.liveService.GetStream(r.Context(), id)
 	if err != nil {
-		http.Error(w, "stream not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "stream not found")
 		return
 	}
 
 	if stream.Status != live.StreamStatusRunning {
-		http.Error(w, "stream offline", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "stream offline")
 		return
 	}
 	data, err := s.store.ReadHLSVariantPlaylist(id, quality)
 	if err != nil {
-		http.Error(w, "playlist not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "playlist not found")
 		return
 	}
 
@@ -62,14 +62,14 @@ func (s *Server) getVODVariantPlaylist(w http.ResponseWriter, r *http.Request) {
 
 	data, err := s.store.ReadHLSVariantPlaylist(id, quality)
 	if err != nil {
-		http.Error(w, "playlist not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "playlist not found")
 		return
 	}
 
 	playlist := rewriteSegmentPaths(string(data), id, quality)
 	playlist = markPlaylistAsEvent(playlist)
 
-	stream, err := s.liveService.GetStream(id)
+	stream, err := s.liveService.GetStream(r.Context(), id)
 	if err == nil {
 		if stream.Status == live.StreamStatusStopped || stream.Status == live.StreamStatusFailed {
 			playlist = markPlaylistEnded(playlist)
@@ -82,7 +82,7 @@ func (s *Server) getVODVariantPlaylist(w http.ResponseWriter, r *http.Request) {
 func (s *Server) writeRewrittenMasterPlaylist(w http.ResponseWriter, id string, mode string) {
 	data, err := s.store.ReadHLSMasterPlaylist(id)
 	if err != nil {
-		http.Error(w, "playlist not found", http.StatusNotFound)
+		writeError(w, http.StatusNotFound, "playlist not found")
 		return
 	}
 

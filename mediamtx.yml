@@ -5,9 +5,11 @@ paths:
     runOnReady: >
       curl -s -X POST http://localhost:8080/api/hooks/mediamtx/ready
       -H "Content-Type: application/json"
+      -H "X-Hook-Secret: dev-hook-secret"
       -d "{\"path\":\"$MTX_PATH\"}"
 
     runOnNotReady: >
       curl -s -X POST http://localhost:8080/api/hooks/mediamtx/not-ready
       -H "Content-Type: application/json"
+      -H "X-Hook-Secret: dev-hook-secret"
       -d "{\"path\":\"$MTX_PATH\"}"

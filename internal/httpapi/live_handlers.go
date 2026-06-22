@@ -2,38 +2,43 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+
+	"stream-platform/internal/auth"
+	"stream-platform/internal/live"
 )
 
-type CreateLiveStreamRequest struct {
-	ID        string `json:"id"`
+type createLiveStreamRequest struct {
 	ChannelID string `json:"channel_id"`
 }
 
-type StartLiveStreamRequest struct {
+type startLiveStreamRequest struct {
 	ID string `json:"id"`
 }
 
 func (s *Server) createLiveStream(w http.ResponseWriter, r *http.Request) {
-	var req CreateLiveStreamRequest
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req createLiveStreamRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
-	if req.ID == "" {
-		http.Error(w, "missing live stream id", http.StatusBadRequest)
-		return
-	}
-	if req.ChannelID == "" {
-		http.Error(w, "missing channel id", http.StatusBadRequest)
-		return
-	}
-
-	stream, err := s.liveService.CreateStream(req.ID, req.ChannelID)
+	stream, err := s.liveService.CreateStream(r.Context(), userID, req.ChannelID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+		if errors.Is(err, live.ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -41,20 +46,26 @@ func (s *Server) createLiveStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) startLiveStream(w http.ResponseWriter, r *http.Request) {
-	var req StartLiveStreamRequest
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req startLiveStreamRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
-	if req.ID == "" {
-		http.Error(w, "missing live stream id", http.StatusBadRequest)
-		return
-	}
+	if err := s.liveService.StartStream(r.Context(), userID, req.ID); err != nil {
+		if errors.Is(err, live.ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
 
-	if err := s.liveService.StartStream(req.ID); err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 
@@ -65,14 +76,25 @@ func (s *Server) startLiveStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) stopLiveStream(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "missing live stream id", http.StatusBadRequest)
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
-	if err := s.liveService.StopStream(id); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing live stream id")
+		return
+	}
+
+	if err := s.liveService.StopStream(r.Context(), userID, id); err != nil {
+		if errors.Is(err, live.ErrForbidden) {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -83,5 +105,11 @@ func (s *Server) stopLiveStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) listLiveStreams(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.liveService.ListStreams())
+	streams, err := s.liveService.ListStreams(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, streams)
 }

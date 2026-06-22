@@ -7,19 +7,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type PostgresRepository struct {
+type PostgresStore struct {
 	db *pgxpool.Pool
 }
 
-func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{db: db}
+func NewPostgresStore(db *pgxpool.Pool) *PostgresStore {
+	return &PostgresStore{db: db}
 }
 
-var _ Repository = (*PostgresRepository)(nil)
+var _ Store = (*PostgresStore)(nil)
 
-func (r *PostgresRepository) Create(stream *Stream) error {
-	err := r.db.QueryRow(
-		context.Background(),
+func (s *PostgresStore) Create(ctx context.Context, stream *Stream) error {
+	err := s.db.QueryRow(
+		ctx,
 		`
 		INSERT INTO streams (
 			id,
@@ -44,8 +44,10 @@ func (r *PostgresRepository) Create(stream *Stream) error {
 
 	return nil
 }
-func (r *PostgresRepository) GetByID(id string) (*Stream, error) {
-	return r.getOne(
+
+func (s *PostgresStore) GetByID(ctx context.Context, id string) (*Stream, error) {
+	return s.getOne(
+		ctx,
 		`
 		SELECT
 			id,
@@ -63,8 +65,9 @@ func (r *PostgresRepository) GetByID(id string) (*Stream, error) {
 	)
 }
 
-func (r *PostgresRepository) GetByStreamKey(streamKey string) (*Stream, error) {
-	return r.getOne(
+func (s *PostgresStore) GetByStreamKey(ctx context.Context, streamKey string) (*Stream, error) {
+	return s.getOne(
+		ctx,
 		`
 		SELECT
 			id,
@@ -82,9 +85,9 @@ func (r *PostgresRepository) GetByStreamKey(streamKey string) (*Stream, error) {
 	)
 }
 
-func (r *PostgresRepository) List() ([]*Stream, error) {
-	rows, err := r.db.Query(
-		context.Background(),
+func (s *PostgresStore) List(ctx context.Context) ([]*Stream, error) {
+	rows, err := s.db.Query(
+		ctx,
 		`
 		SELECT
 			id,
@@ -132,9 +135,9 @@ func (r *PostgresRepository) List() ([]*Stream, error) {
 	return streams, nil
 }
 
-func (r *PostgresRepository) Update(stream *Stream) error {
-	result, err := r.db.Exec(
-		context.Background(),
+func (s *PostgresStore) Update(ctx context.Context, stream *Stream) error {
+	result, err := s.db.Exec(
+		ctx,
 		`
 		UPDATE streams
 		SET
@@ -161,36 +164,9 @@ func (r *PostgresRepository) Update(stream *Stream) error {
 	return nil
 }
 
-func (r *PostgresRepository) getOne(query string, arg string) (*Stream, error) {
-	stream := &Stream{}
-
-	err := r.db.QueryRow(context.Background(), query, arg).Scan(
-		&stream.ID,
-		&stream.ChannelID,
-		&stream.StreamKey,
-		&stream.Status,
-		&stream.Error,
-		&stream.CreatedAt,
-		&stream.StartedAt,
-		&stream.StoppedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("get stream: %w", err)
-	}
-
-	return stream, nil
-}
-
-func nilIfEmpty(value string) *string {
-	if value == "" {
-		return nil
-	}
-
-	return &value
-}
-func (r *PostgresRepository) ListByChannelID(channelID string) ([]*Stream, error) {
-	rows, err := r.db.Query(
-		context.Background(),
+func (s *PostgresStore) ListByChannelID(ctx context.Context, channelID string) ([]*Stream, error) {
+	rows, err := s.db.Query(
+		ctx,
 		`
 		SELECT
 			id,
@@ -216,6 +192,7 @@ func (r *PostgresRepository) ListByChannelID(channelID string) ([]*Stream, error
 
 	for rows.Next() {
 		stream := &Stream{}
+
 		if err := rows.Scan(
 			&stream.ID,
 			&stream.ChannelID,
@@ -228,6 +205,7 @@ func (r *PostgresRepository) ListByChannelID(channelID string) ([]*Stream, error
 		); err != nil {
 			return nil, fmt.Errorf("scan stream: %w", err)
 		}
+
 		streams = append(streams, stream)
 	}
 
@@ -237,8 +215,10 @@ func (r *PostgresRepository) ListByChannelID(channelID string) ([]*Stream, error
 
 	return streams, nil
 }
-func (r *PostgresRepository) GetLatestByChannelID(channelID string) (*Stream, error) {
-	return r.getOne(
+
+func (s *PostgresStore) GetLatestByChannelID(ctx context.Context, channelID string) (*Stream, error) {
+	return s.getOne(
+		ctx,
 		`
 		SELECT
 			id,
@@ -256,4 +236,32 @@ func (r *PostgresRepository) GetLatestByChannelID(channelID string) (*Stream, er
 		`,
 		channelID,
 	)
+}
+
+func (s *PostgresStore) getOne(ctx context.Context, query string, arg string) (*Stream, error) {
+	stream := &Stream{}
+
+	err := s.db.QueryRow(ctx, query, arg).Scan(
+		&stream.ID,
+		&stream.ChannelID,
+		&stream.StreamKey,
+		&stream.Status,
+		&stream.Error,
+		&stream.CreatedAt,
+		&stream.StartedAt,
+		&stream.StoppedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get stream: %w", err)
+	}
+
+	return stream, nil
+}
+
+func nilIfEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+
+	return &value
 }

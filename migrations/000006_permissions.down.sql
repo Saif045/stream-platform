@@ -1,0 +1,21 @@
+REVOKE
+    SELECT,
+    INSERT,
+    UPDATE,
+    DELETE
+ON ALL TABLES IN SCHEMA public
+FROM stream_user;
+
+ALTER DEFAULT PRIVILEGES
+FOR ROLE stream_migrator
+IN SCHEMA public
+REVOKE
+    SELECT,
+    INSERT,
+    UPDATE,
+    DELETE
+ON TABLES
+FROM stream_user;
+
+REVOKE USAGE ON SCHEMA public
+FROM stream_user;

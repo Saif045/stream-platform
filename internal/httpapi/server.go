@@ -6,59 +6,45 @@ import (
 	"stream-platform/internal/channel"
 	"stream-platform/internal/live"
 	"stream-platform/internal/storage"
+	"stream-platform/internal/user"
 	"stream-platform/internal/vod"
 )
 
 type Server struct {
 	liveService    *live.Service
 	vodService     *vod.Service
-	store          *storage.Store
 	channelService *channel.Service
+	userService    *user.Service
+	store          *storage.Store
+	hookSecret     string
 }
 
 func NewServer(
 	liveService *live.Service,
 	vodService *vod.Service,
 	channelService *channel.Service,
+	userService *user.Service,
 	store *storage.Store,
+	hookSecret string,
 ) *Server {
 	return &Server{
 		liveService:    liveService,
 		vodService:     vodService,
 		channelService: channelService,
+		userService:    userService,
 		store:          store,
+		hookSecret:     hookSecret,
 	}
 }
-
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /api/live/streams/create", s.createLiveStream)
-	mux.HandleFunc("POST /api/live/streams/start", s.startLiveStream)
-	mux.HandleFunc("POST /api/live/streams/stop", s.stopLiveStream)
-	mux.HandleFunc("GET /api/live/streams", s.listLiveStreams)
-
-	mux.HandleFunc("GET /api/vods", s.listVODs)
-	mux.HandleFunc("GET /api/vods/{id}", s.getVOD)
-
-	mux.HandleFunc("GET /streams/{id}/live/master.m3u8", s.getLiveMasterPlaylist)
-	mux.HandleFunc("GET /streams/{id}/vod/master.m3u8", s.getVODMasterPlaylist)
-	mux.HandleFunc("GET /streams/{id}/live/{quality}/playlist.m3u8", s.getLiveVariantPlaylist)
-	mux.HandleFunc("GET /streams/{id}/vod/{quality}/playlist.m3u8", s.getVODVariantPlaylist)
-
-	mux.HandleFunc("POST /api/hooks/mediamtx/ready", s.mediaMTXReady)
-	mux.HandleFunc("POST /api/hooks/mediamtx/not-ready", s.mediaMTXNotReady)
-	mux.HandleFunc("GET /watch/{id}/live", s.watchLive)
-	mux.HandleFunc("GET /watch/{id}/vod", s.watchVOD)
-	mux.HandleFunc("GET /channels/{slug}/watch", s.watchChannel)
-
-	mux.HandleFunc("POST /api/channels", s.createChannel)
-	mux.HandleFunc("GET /api/channels", s.listChannels)
-	mux.HandleFunc("GET /api/channels/{id}/streams", s.listChannelStreams)
-	mux.HandleFunc("GET /api/channels/slug/{slug}/streams", s.listChannelStreamsBySlug)
-
-	fileServer := http.FileServer(http.Dir(s.store.StreamsRoot()))
-	mux.Handle("/streams/{id}/hls/", http.StripPrefix("/streams/", fileServer))
+	s.registerAuthRoutes(mux)
+	s.registerAPIRoutes(mux)
+	s.registerPublicRoutes(mux)
+	s.registerPlaybackRoutes(mux)
+	s.registerHookRoutes(mux)
+	s.registerFileRoutes(mux)
 
 	return mux
 }

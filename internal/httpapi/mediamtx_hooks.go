@@ -14,18 +14,18 @@ func (s *Server) mediaMTXReady(w http.ResponseWriter, r *http.Request) {
 	var req MediaMTXHookRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
 	streamKey := extractStreamKey(req.Path)
 	if streamKey == "" {
-		http.Error(w, "invalid path", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
 
-	if err := s.liveService.StartStreamByKey(streamKey); err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+	if err := s.liveService.StartStreamByKey(r.Context(), streamKey); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 
@@ -39,18 +39,18 @@ func (s *Server) mediaMTXNotReady(w http.ResponseWriter, r *http.Request) {
 	var req MediaMTXHookRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
 
 	streamKey := extractStreamKey(req.Path)
 	if streamKey == "" {
-		http.Error(w, "invalid path", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
 
-	if err := s.liveService.MarkStreamDisconnectedByKey(streamKey); err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+	if err := s.liveService.MarkStreamDisconnectedByKey(r.Context(), streamKey); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 

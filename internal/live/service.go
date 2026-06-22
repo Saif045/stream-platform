@@ -1,42 +1,165 @@
 package live
 
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"strings"
+
+	"github.com/google/uuid"
+
+	"stream-platform/internal/channel"
+)
+
+var ErrForbidden = errors.New("forbidden")
+
 type Service struct {
-	manager *Manager
+	store          Store
+	manager        *Manager
+	channelService *channel.Service
 }
 
-func NewService(manager *Manager) *Service {
-	return &Service{manager: manager}
+func NewService(store Store, manager *Manager, channelService *channel.Service) *Service {
+	return &Service{
+		store:          store,
+		manager:        manager,
+		channelService: channelService,
+	}
 }
 
-func (s *Service) CreateStream(id string, channelID string) (*Stream, error) {
-	return s.manager.CreateStream(id, channelID)
+func (s *Service) CreateStream(ctx context.Context, userID string, channelID string) (*Stream, error) {
+	userID = strings.TrimSpace(userID)
+	channelID = strings.TrimSpace(channelID)
+
+	if userID == "" {
+		return nil, errors.New("user id is required")
+	}
+
+	if channelID == "" {
+		return nil, errors.New("channel id is required")
+	}
+
+	ch, err := s.channelService.GetByID(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	if ch.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	streamKey, err := generateStreamKey()
+	if err != nil {
+		return nil, err
+	}
+
+	stream := &Stream{
+		ID:        uuid.NewString(),
+		ChannelID: channelID,
+		StreamKey: streamKey,
+		Status:    StreamStatusCreated,
+	}
+
+	if err := s.store.Create(ctx, stream); err != nil {
+		return nil, err
+	}
+
+	return s.manager.HydrateStream(stream), nil
 }
 
-func (s *Service) StartStream(id string) error {
-	return s.manager.StartStream(id)
+func (s *Service) StartStream(ctx context.Context, userID string, id string) error {
+	if err := s.checkStreamOwnership(ctx, userID, id); err != nil {
+		return err
+	}
+
+	return s.manager.StartStream(ctx, id)
 }
 
-func (s *Service) StopStream(id string) error {
-	return s.manager.StopStream(id)
+func (s *Service) StopStream(ctx context.Context, userID string, id string) error {
+	if err := s.checkStreamOwnership(ctx, userID, id); err != nil {
+		return err
+	}
+
+	return s.manager.StopStream(ctx, id)
 }
 
-func (s *Service) ListStreams() []*Stream {
-	return s.manager.ListStreams()
-}
-func (s *Service) StartStreamByKey(streamKey string) error {
-	return s.manager.StartStreamByKey(streamKey)
+func (s *Service) ListStreams(ctx context.Context) ([]*Stream, error) {
+	streams, err := s.store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, stream := range streams {
+		s.manager.HydrateStream(stream)
+	}
+
+	return streams, nil
 }
 
-func (s *Service) MarkStreamDisconnectedByKey(streamKey string) error {
-	return s.manager.MarkStreamDisconnectedByKey(streamKey)
-}
-func (s *Service) GetStream(id string) (*Stream, error) {
-	return s.manager.GetStream(id)
+func (s *Service) StartStreamByKey(ctx context.Context, streamKey string) error {
+	return s.manager.StartStreamByKey(ctx, streamKey)
 }
 
-func (s *Service) ListStreamsByChannelID(channelID string) ([]*Stream, error) {
-	return s.manager.ListStreamsByChannelID(channelID)
+func (s *Service) MarkStreamDisconnectedByKey(ctx context.Context, streamKey string) error {
+	return s.manager.MarkStreamDisconnectedByKey(ctx, streamKey)
 }
-func (s *Service) GetLatestStreamByChannelID(channelID string) (*Stream, error) {
-	return s.manager.GetLatestStreamByChannelID(channelID)
+
+func (s *Service) GetStream(ctx context.Context, id string) (*Stream, error) {
+	stream, err := s.store.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.manager.HydrateStream(stream), nil
+}
+
+func (s *Service) ListStreamsByChannelID(ctx context.Context, channelID string) ([]*Stream, error) {
+	streams, err := s.store.ListByChannelID(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, stream := range streams {
+		s.manager.HydrateStream(stream)
+	}
+
+	return streams, nil
+}
+
+func (s *Service) GetLatestStreamByChannelID(ctx context.Context, channelID string) (*Stream, error) {
+	stream, err := s.store.GetLatestByChannelID(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.manager.HydrateStream(stream), nil
+}
+
+func (s *Service) checkStreamOwnership(ctx context.Context, userID string, streamID string) error {
+	stream, err := s.store.GetByID(ctx, streamID)
+	if err != nil {
+		return err
+	}
+
+	ch, err := s.channelService.GetByID(ctx, stream.ChannelID)
+	if err != nil {
+		return err
+	}
+
+	if ch.UserID != userID {
+		return ErrForbidden
+	}
+
+	return nil
+}
+
+func generateStreamKey() (string, error) {
+	buf := make([]byte, 32)
+
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(buf), nil
 }

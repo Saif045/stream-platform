@@ -7,19 +7,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type PostgresRepository struct {
+type PostgresStore struct {
 	db *pgxpool.Pool
 }
 
-func NewPostgresRepository(db *pgxpool.Pool) *PostgresRepository {
-	return &PostgresRepository{db: db}
+func NewPostgresStore(db *pgxpool.Pool) *PostgresStore {
+	return &PostgresStore{db: db}
 }
 
-var _ Repository = (*PostgresRepository)(nil)
+var _ Store = (*PostgresStore)(nil)
 
-func (r *PostgresRepository) Create(channel *Channel) error {
-	err := r.db.QueryRow(
-		context.Background(),
+func (s *PostgresStore) Create(ctx context.Context, channel *Channel) error {
+	err := s.db.QueryRow(
+		ctx,
 		`
 		INSERT INTO channels (
 			id,
@@ -41,11 +41,11 @@ func (r *PostgresRepository) Create(channel *Channel) error {
 	return nil
 }
 
-func (r *PostgresRepository) GetByID(id string) (*Channel, error) {
+func (s *PostgresStore) GetByID(ctx context.Context, id string) (*Channel, error) {
 	channel := &Channel{}
 
-	err := r.db.QueryRow(
-		context.Background(),
+	err := s.db.QueryRow(
+		ctx,
 		`
 		SELECT id, user_id, slug, created_at
 		FROM channels
@@ -66,9 +66,9 @@ func (r *PostgresRepository) GetByID(id string) (*Channel, error) {
 	return channel, nil
 }
 
-func (r *PostgresRepository) List() ([]*Channel, error) {
-	rows, err := r.db.Query(
-		context.Background(),
+func (s *PostgresStore) List(ctx context.Context) ([]*Channel, error) {
+	rows, err := s.db.Query(
+		ctx,
 		`
 		SELECT id, user_id, slug, created_at
 		FROM channels
@@ -103,11 +103,12 @@ func (r *PostgresRepository) List() ([]*Channel, error) {
 
 	return channels, nil
 }
-func (r *PostgresRepository) GetBySlug(slug string) (*Channel, error) {
+
+func (s *PostgresStore) GetBySlug(ctx context.Context, slug string) (*Channel, error) {
 	channel := &Channel{}
 
-	err := r.db.QueryRow(
-		context.Background(),
+	err := s.db.QueryRow(
+		ctx,
 		`
 		SELECT id, user_id, slug, created_at
 		FROM channels

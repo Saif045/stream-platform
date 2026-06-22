@@ -4,15 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"stream-platform/internal/auth"
 	"stream-platform/internal/channel"
 	"stream-platform/internal/config"
 	"stream-platform/internal/ffmpeg"
 	"stream-platform/internal/httpapi"
 	"stream-platform/internal/live"
 	"stream-platform/internal/storage"
+	"stream-platform/internal/user"
 	"stream-platform/internal/vod"
 
 	"github.com/joho/godotenv"
@@ -21,31 +24,37 @@ import (
 func main() {
 	_ = godotenv.Load()
 	cfg := config.Load()
+	auth.SetSecret(cfg.JWTSecret)
 
-	db, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
+	db, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
 
-	if err := db.Ping(context.Background()); err != nil {
+	if err := db.Ping(ctx); err != nil {
 		panic(err)
 	}
 
-	runner := ffmpeg.NewRunner()
+	ffmpegRunner := ffmpeg.NewRunner()
 	store := storage.NewStore(cfg.DataDir)
 
-	liveRepo := live.NewPostgresRepository(db)
+	liveStore := live.NewPostgresStore(db)
+	liveManager := live.NewManager(ffmpegRunner, store, liveStore)
 
-	liveManager := live.NewManager(runner, store, liveRepo)
-	liveService := live.NewService(liveManager)
 	vodService := vod.NewService(store)
 
-	channelRepo := channel.NewPostgresRepository(db)
-	channelService := channel.NewService(channelRepo)
+	channelStore := channel.NewPostgresStore(db)
+	channelService := channel.NewService(channelStore)
 
-	server := httpapi.NewServer(liveService, vodService, channelService, store)
+	liveService := live.NewService(liveStore, liveManager, channelService)
+
+	userStore := user.NewPostgresStore(db)
+	userService := user.NewService(userStore)
+
+	server := httpapi.NewServer(liveService, vodService, channelService, userService, store, cfg.HookSecret)
 
 	fmt.Println("server listening on", cfg.HTTPAddr)
 
