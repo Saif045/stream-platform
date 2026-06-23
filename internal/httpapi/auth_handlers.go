@@ -2,9 +2,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"stream-platform/internal/auth"
+	"stream-platform/internal/user"
 )
 
 type registerRequest struct {
@@ -31,6 +33,11 @@ func (s *Server) registerUser(w http.ResponseWriter, r *http.Request) {
 
 	createdUser, err := s.userService.Register(r.Context(), req.Username, req.Password)
 	if err != nil {
+		if errors.Is(err, user.ErrUsernameTaken) {
+			writeError(w, http.StatusConflict, "username already exists")
+			return
+		}
+
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

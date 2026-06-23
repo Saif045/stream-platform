@@ -2,8 +2,11 @@ package channel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -35,6 +38,11 @@ func (s *PostgresStore) Create(ctx context.Context, channel *Channel) error {
 	).Scan(&channel.CreatedAt)
 
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrSlugTaken
+		}
+
 		return fmt.Errorf("create channel: %w", err)
 	}
 
@@ -60,6 +68,10 @@ func (s *PostgresStore) GetByID(ctx context.Context, id string) (*Channel, error
 	)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
 		return nil, fmt.Errorf("get channel: %w", err)
 	}
 
@@ -123,6 +135,10 @@ func (s *PostgresStore) GetBySlug(ctx context.Context, slug string) (*Channel, e
 	)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
 		return nil, fmt.Errorf("get channel by slug: %w", err)
 	}
 

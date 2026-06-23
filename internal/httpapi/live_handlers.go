@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"stream-platform/internal/auth"
+	"stream-platform/internal/channel"
 	"stream-platform/internal/live"
 )
 
@@ -38,6 +39,11 @@ func (s *Server) createLiveStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if errors.Is(err, channel.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "channel not found")
+			return
+		}
+
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -62,6 +68,11 @@ func (s *Server) startLiveStream(w http.ResponseWriter, r *http.Request) {
 	if err := s.liveService.StartStream(r.Context(), userID, req.ID); err != nil {
 		if errors.Is(err, live.ErrForbidden) {
 			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+
+		if errors.Is(err, channel.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "channel not found")
 			return
 		}
 
@@ -94,7 +105,12 @@ func (s *Server) stopLiveStream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		writeError(w, http.StatusBadRequest, err.Error())
+		if errors.Is(err, channel.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "channel not found")
+			return
+		}
+
+		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
 
@@ -107,7 +123,7 @@ func (s *Server) stopLiveStream(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listLiveStreams(w http.ResponseWriter, r *http.Request) {
 	streams, err := s.liveService.ListStreams(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeInternalError(w)
 		return
 	}
 

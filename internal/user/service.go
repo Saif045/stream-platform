@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUsernameTaken      = errors.New("username already exists")
 )
 
 type Service struct {

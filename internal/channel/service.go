@@ -11,6 +11,11 @@ import (
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9-]{3,32}$`)
 
+var (
+	ErrNotFound  = errors.New("channel not found")
+	ErrSlugTaken = errors.New("channel slug already exists")
+)
+
 type Service struct {
 	store Store
 }
