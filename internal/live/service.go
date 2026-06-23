@@ -14,16 +14,27 @@ import (
 
 var ErrForbidden = errors.New("forbidden")
 
-type Service struct {
-	store          Store
-	manager        *Manager
-	channelService *channel.Service
+type ChannelGetter interface {
+	GetByID(ctx context.Context, id string) (*channel.Channel, error)
 }
 
-func NewService(store Store, manager *Manager, channelService *channel.Service) *Service {
+type Runtime interface {
+	StartStream(ctx context.Context, id string) error
+	StopStream(ctx context.Context, id string) error
+	StartStreamByKey(ctx context.Context, streamKey string) error
+	MarkStreamDisconnectedByKey(ctx context.Context, streamKey string) error
+	HydrateStream(stream *Stream) *Stream
+}
+type Service struct {
+	store          Store
+	runtime        Runtime
+	channelService ChannelGetter
+}
+
+func NewService(store Store, runtime Runtime, channelService ChannelGetter) *Service {
 	return &Service{
 		store:          store,
-		manager:        manager,
+		runtime:        runtime,
 		channelService: channelService,
 	}
 }
@@ -65,7 +76,7 @@ func (s *Service) CreateStream(ctx context.Context, userID string, channelID str
 		return nil, err
 	}
 
-	return s.manager.HydrateStream(stream), nil
+	return s.runtime.HydrateStream(stream), nil
 }
 
 func (s *Service) StartStream(ctx context.Context, userID string, id string) error {
@@ -73,7 +84,7 @@ func (s *Service) StartStream(ctx context.Context, userID string, id string) err
 		return err
 	}
 
-	return s.manager.StartStream(ctx, id)
+	return s.runtime.StartStream(ctx, id)
 }
 
 func (s *Service) StopStream(ctx context.Context, userID string, id string) error {
@@ -81,7 +92,7 @@ func (s *Service) StopStream(ctx context.Context, userID string, id string) erro
 		return err
 	}
 
-	return s.manager.StopStream(ctx, id)
+	return s.runtime.StopStream(ctx, id)
 }
 
 func (s *Service) ListStreams(ctx context.Context) ([]*Stream, error) {
@@ -91,18 +102,18 @@ func (s *Service) ListStreams(ctx context.Context) ([]*Stream, error) {
 	}
 
 	for _, stream := range streams {
-		s.manager.HydrateStream(stream)
+		s.runtime.HydrateStream(stream)
 	}
 
 	return streams, nil
 }
 
 func (s *Service) StartStreamByKey(ctx context.Context, streamKey string) error {
-	return s.manager.StartStreamByKey(ctx, streamKey)
+	return s.runtime.StartStreamByKey(ctx, streamKey)
 }
 
 func (s *Service) MarkStreamDisconnectedByKey(ctx context.Context, streamKey string) error {
-	return s.manager.MarkStreamDisconnectedByKey(ctx, streamKey)
+	return s.runtime.MarkStreamDisconnectedByKey(ctx, streamKey)
 }
 
 func (s *Service) GetStream(ctx context.Context, id string) (*Stream, error) {
@@ -111,7 +122,7 @@ func (s *Service) GetStream(ctx context.Context, id string) (*Stream, error) {
 		return nil, err
 	}
 
-	return s.manager.HydrateStream(stream), nil
+	return s.runtime.HydrateStream(stream), nil
 }
 
 func (s *Service) ListStreamsByChannelID(ctx context.Context, channelID string) ([]*Stream, error) {
@@ -121,7 +132,7 @@ func (s *Service) ListStreamsByChannelID(ctx context.Context, channelID string) 
 	}
 
 	for _, stream := range streams {
-		s.manager.HydrateStream(stream)
+		s.runtime.HydrateStream(stream)
 	}
 
 	return streams, nil
@@ -133,7 +144,7 @@ func (s *Service) GetLatestStreamByChannelID(ctx context.Context, channelID stri
 		return nil, err
 	}
 
-	return s.manager.HydrateStream(stream), nil
+	return s.runtime.HydrateStream(stream), nil
 }
 
 func (s *Service) checkStreamOwnership(ctx context.Context, userID string, streamID string) error {
