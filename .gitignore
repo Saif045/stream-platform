@@ -1,4 +1,5 @@
 data
 .stream.json
+.channel.json
 auto.*
 .env
