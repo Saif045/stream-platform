@@ -1,6 +1,10 @@
 package httpapi
 
-import "net/http"
+import (
+	"net/http"
+
+	"stream-platform/internal/live"
+)
 
 func (s *Server) watchChannel(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
@@ -21,10 +25,13 @@ func (s *Server) watchChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if stream.Status == "running" {
-		http.Redirect(w, r, stream.LiveURL, http.StatusTemporaryRedirect)
-		return
+	mode := "vod"
+	playlistURL := "/streams/" + stream.ID + "/vod/master.m3u8"
+
+	if stream.Status == live.StreamStatusRunning {
+		mode = "live"
+		playlistURL = "/streams/" + stream.ID + "/live/master.m3u8"
 	}
 
-	http.Redirect(w, r, stream.VODURL, http.StatusTemporaryRedirect)
+	writeWatchPage(w, stream.ID, mode, playlistURL)
 }

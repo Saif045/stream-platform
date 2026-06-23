@@ -45,11 +45,18 @@ func (s *Server) registerAPIRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/vods", s.listVODs)
 	mux.HandleFunc("GET /api/vods/{id}", s.getVOD)
 }
+
 func (s *Server) registerPublicRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /channels/{slug}/watch", s.watchChannel)
 	mux.HandleFunc("GET /watch/{id}/live", s.watchLive)
 	mux.HandleFunc("GET /watch/{id}/vod", s.watchVOD)
+
+	mux.Handle(
+		"GET /static/",
+		http.StripPrefix("/static/", http.FileServer(http.Dir("internal/httpapi/static"))),
+	)
 }
+
 func (s *Server) registerPlaybackRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /streams/{id}/live/master.m3u8", s.getLiveMasterPlaylist)
 	mux.HandleFunc("GET /streams/{id}/vod/master.m3u8", s.getVODMasterPlaylist)
