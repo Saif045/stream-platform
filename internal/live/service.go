@@ -12,7 +12,10 @@ import (
 	"stream-platform/internal/channel"
 )
 
-var ErrForbidden = errors.New("forbidden")
+var (
+	ErrForbidden          = errors.New("forbidden")
+	ErrActiveStreamExists = errors.New("channel already has an active stream")
+)
 
 type ChannelGetter interface {
 	GetByID(ctx context.Context, id string) (*channel.Channel, error)
@@ -60,6 +63,15 @@ func (s *Service) CreateStream(ctx context.Context, userID string, channelID str
 		return nil, ErrForbidden
 	}
 
+	hasActive, err := s.store.HasActiveStreamByChannelID(ctx, channelID)
+	if err != nil {
+		return nil, err
+	}
+
+	if hasActive {
+		return nil, ErrActiveStreamExists
+	}
+
 	streamKey, err := generateStreamKey()
 	if err != nil {
 		return nil, err
@@ -73,6 +85,7 @@ func (s *Service) CreateStream(ctx context.Context, userID string, channelID str
 		},
 		StreamKey: streamKey,
 	}
+
 	if err := s.store.Create(ctx, stream); err != nil {
 		return nil, err
 	}

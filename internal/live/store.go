@@ -10,4 +10,5 @@ type Store interface {
 	Update(ctx context.Context, stream *Stream) error
 	ListByChannelID(ctx context.Context, channelID string) ([]*Stream, error)
 	GetLatestByChannelID(ctx context.Context, channelID string) (*Stream, error)
+	HasActiveStreamByChannelID(ctx context.Context, channelID string) (bool, error)
 }

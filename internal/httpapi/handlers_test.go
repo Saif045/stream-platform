@@ -202,6 +202,23 @@ func (f *fakeLiveStore) GetLatestByChannelID(ctx context.Context, channelID stri
 
 	return nil, errors.New("stream not found")
 }
+func (f *fakeLiveStore) HasActiveStreamByChannelID(ctx context.Context, channelID string) (bool, error) {
+	for _, stream := range f.streams {
+		if stream.ChannelID == channelID &&
+			(stream.Status == live.StreamStatusCreated || stream.Status == live.StreamStatusRunning) {
+			return true, nil
+		}
+	}
+
+	for _, stream := range f.list {
+		if stream.ChannelID == channelID &&
+			(stream.Status == live.StreamStatusCreated || stream.Status == live.StreamStatusRunning) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
 
 type fakeRuntime struct{}
 
@@ -512,7 +529,69 @@ func TestLiveStreamHandlers(t *testing.T) {
 		assertBodyNotContains(t, body, "rtmp_url")
 		assertBodyNotContains(t, body, "output_dir")
 		assertBodyNotContains(t, body, "ffmpeg failed")
+	},
+	)
+
+	t.Run("owner creating second active stream returns 409", func(t *testing.T) {
+		auth.SetSecret("test-secret")
+
+		token, err := auth.GenerateToken("user-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		channelService := channel.NewService(&fakeChannelStore{
+			channels: map[string]*channel.Channel{
+				"channel-1": {
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
+					UserID: "user-1",
+				},
+			},
+		})
+
+		s := &Server{
+			channelService: channelService,
+			liveService: live.NewService(
+				&fakeLiveStore{
+					streams: map[string]*live.Stream{
+						"stream-1": {
+							PublicStream: live.PublicStream{
+								ID:        "stream-1",
+								ChannelID: "channel-1",
+								Status:    live.StreamStatusCreated,
+							},
+							StreamKey: "existing-key",
+						},
+					},
+				},
+				&fakeRuntime{},
+				channelService,
+			),
+		}
+
+		handler := auth.Middleware(http.HandlerFunc(s.createLiveStream))
+
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/api/live/streams/create",
+			strings.NewReader(`{"channel_id":"channel-1"}`),
+		)
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		rec := httptest.NewRecorder()
+
+		handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("expected status %d, got %d", http.StatusConflict, rec.Code)
+		}
+
+		assertBodyContains(t, rec.Body.String(), `"error":"channel already has an active stream"`)
 	})
+
 }
 
 func assertBodyContains(t *testing.T, body string, want string) {

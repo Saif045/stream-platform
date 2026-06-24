@@ -2,8 +2,10 @@ package live
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -18,28 +20,32 @@ func NewPostgresStore(db *pgxpool.Pool) *PostgresStore {
 var _ Store = (*PostgresStore)(nil)
 
 func (s *PostgresStore) Create(ctx context.Context, stream *Stream) error {
-	err := s.db.QueryRow(
-		ctx,
-		`
+	err := s.db.QueryRow(ctx, `
 		INSERT INTO streams (
 			id,
 			channel_id,
 			stream_key,
-			status,
-			error
+			status
 		)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3, $4)
 		RETURNING created_at
-		`,
+	`,
 		stream.ID,
 		stream.ChannelID,
 		stream.StreamKey,
 		stream.Status,
-		nilIfEmpty(stream.Error),
 	).Scan(&stream.CreatedAt)
 
 	if err != nil {
-		return fmt.Errorf("create stream: %w", err)
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) &&
+			pgErr.Code == "23505" &&
+			pgErr.ConstraintName == "streams_one_active_per_channel_idx" {
+			return ErrActiveStreamExists
+		}
+
+		return err
 	}
 
 	return nil
@@ -264,4 +270,22 @@ func nilIfEmpty(value string) *string {
 	}
 
 	return &value
+}
+func (s *PostgresStore) HasActiveStreamByChannelID(ctx context.Context, channelID string) (bool, error) {
+	var exists bool
+
+	err := s.db.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM streams
+			WHERE channel_id = $1
+			  AND status IN ('created', 'running')
+		)
+	`, channelID).Scan(&exists)
+
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
 }

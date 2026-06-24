@@ -146,6 +146,14 @@ echo "STREAM_ID: $STREAM_ID"
 echo "STREAM_KEY length: ${#STREAM_KEY}"
 
 echo
+echo "== user A creates second stream for same channel -> 409 =="
+curl -s -i \
+  -X POST "$BASE/api/live/streams/create" \
+  -H "Authorization: Bearer $TOKEN_A" \
+  -H "Content-Type: application/json" \
+  -d "{\"channel_id\":\"$CHANNEL_ID\"}"
+
+echo
 echo "== list live streams -> 200 and no sensitive fields =="
 LIVE_STREAMS_JSON="$(curl -s "$BASE/api/live/streams")"
 echo "$LIVE_STREAMS_JSON" | jq .
@@ -157,7 +165,7 @@ fi
 
 echo
 echo "== list channel streams by slug -> 200 =="
-curl -s -i "$BASE/channels/$SLUG_A/streams"
+curl -s -i "$BASE/api/channels/slug/$SLUG_A/streams"
 
 echo
 echo "== watch page route exists =="

@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS streams_one_active_per_channel_idx;

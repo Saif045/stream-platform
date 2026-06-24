@@ -9,14 +9,19 @@ import (
 )
 
 type fakeLiveStore struct {
-	streams map[string]*Stream
-
 	createErr error
 	getErr    error
 	updateErr error
+	listErr   error
+
+	hasActiveStream bool
+	hasActiveErr    error
 
 	created *Stream
 	updated *Stream
+
+	streams map[string]*Stream
+	list    []*Stream
 }
 
 func (f *fakeLiveStore) Create(ctx context.Context, stream *Stream) error {
@@ -102,6 +107,13 @@ func (f *fakeLiveStore) GetLatestByChannelID(ctx context.Context, channelID stri
 	}
 
 	return nil, errors.New("stream not found")
+}
+func (f *fakeLiveStore) HasActiveStreamByChannelID(ctx context.Context, channelID string) (bool, error) {
+	if f.hasActiveErr != nil {
+		return false, f.hasActiveErr
+	}
+
+	return f.hasActiveStream, nil
 }
 
 type fakeRuntime struct {
@@ -316,6 +328,77 @@ func TestCreateStream(t *testing.T) {
 			t.Fatalf("expected store error, got %v", err)
 		}
 	})
+
+	t.Run("rejects active stream exists", func(t *testing.T) {
+		store := &fakeLiveStore{
+			hasActiveStream: true,
+		}
+
+		runtime := &fakeRuntime{}
+
+		channelGetter := &fakeChannelGetter{
+			channels: map[string]*channel.Channel{
+				"channel-1": {
+					PublicChannel: channel.PublicChannel{
+						ID: "channel-1",
+					},
+					UserID: "user-1",
+				},
+			},
+		}
+
+		service := NewService(store, runtime, channelGetter)
+
+		stream, err := service.CreateStream(context.Background(), "user-1", "channel-1")
+		if !errors.Is(err, ErrActiveStreamExists) {
+			t.Fatalf("expected ErrActiveStreamExists, got %v", err)
+		}
+
+		if stream != nil {
+			t.Fatalf("expected nil stream, got %+v", stream)
+		}
+
+		if store.created != nil {
+			t.Fatalf("expected stream not to be created")
+		}
+	})
+
+	t.Run("returns active stream check error", func(t *testing.T) {
+		expectedErr := errors.New("active stream check failed")
+
+		store := &fakeLiveStore{
+			hasActiveErr: expectedErr,
+		}
+
+		runtime := &fakeRuntime{}
+
+		channelGetter := &fakeChannelGetter{
+			channels: map[string]*channel.Channel{
+				"channel-1": {
+					PublicChannel: channel.PublicChannel{
+						ID: "channel-1",
+					},
+					UserID: "user-1",
+				},
+			},
+		}
+
+		service := NewService(store, runtime, channelGetter)
+
+		stream, err := service.CreateStream(context.Background(), "user-1", "channel-1")
+		if !errors.Is(err, expectedErr) {
+			t.Fatalf("expected %v, got %v", expectedErr, err)
+		}
+
+		if stream != nil {
+			t.Fatalf("expected nil stream, got %+v", stream)
+		}
+
+		if store.created != nil {
+			t.Fatalf("expected stream not to be created")
+		}
+	})
+
 }
 
 func TestStartStream(t *testing.T) {

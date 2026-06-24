@@ -34,8 +34,14 @@ func (s *Server) createLiveStream(w http.ResponseWriter, r *http.Request) {
 
 	stream, err := s.liveService.CreateStream(r.Context(), userID, req.ChannelID)
 	if err != nil {
+		
 		if errors.Is(err, live.ErrForbidden) {
 			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+
+		if errors.Is(err, live.ErrActiveStreamExists) {
+			writeError(w, http.StatusConflict, "channel already has an active stream")
 			return
 		}
 
