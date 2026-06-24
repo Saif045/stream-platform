@@ -171,9 +171,11 @@ func TestCreateStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "user-1",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -250,9 +252,11 @@ func TestCreateStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "owner-user",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -296,9 +300,11 @@ func TestCreateStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "user-1",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -317,9 +323,11 @@ func TestStartStream(t *testing.T) {
 		store := &fakeLiveStore{
 			streams: map[string]*Stream{
 				"stream-1": {
-					ID:        "stream-1",
-					ChannelID: "channel-1",
-					Status:    StreamStatusCreated,
+					PublicStream: PublicStream{
+						ID:        "stream-1",
+						ChannelID: "channel-1",
+						Status:    StreamStatusCreated,
+					},
 				},
 			},
 		}
@@ -328,9 +336,11 @@ func TestStartStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "user-1",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -351,9 +361,11 @@ func TestStartStream(t *testing.T) {
 		store := &fakeLiveStore{
 			streams: map[string]*Stream{
 				"stream-1": {
-					ID:        "stream-1",
-					ChannelID: "channel-1",
-					Status:    StreamStatusCreated,
+					PublicStream: PublicStream{
+						ID:        "stream-1",
+						ChannelID: "channel-1",
+						Status:    StreamStatusCreated,
+					},
 				},
 			},
 		}
@@ -362,9 +374,11 @@ func TestStartStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "owner-user",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -406,9 +420,11 @@ func TestStartStream(t *testing.T) {
 		store := &fakeLiveStore{
 			streams: map[string]*Stream{
 				"stream-1": {
-					ID:        "stream-1",
-					ChannelID: "channel-1",
-					Status:    StreamStatusCreated,
+					PublicStream: PublicStream{
+						ID:        "stream-1",
+						ChannelID: "channel-1",
+						Status:    StreamStatusCreated,
+					},
 				},
 			},
 		}
@@ -417,9 +433,11 @@ func TestStartStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "user-1",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -438,9 +456,11 @@ func TestStopStream(t *testing.T) {
 		store := &fakeLiveStore{
 			streams: map[string]*Stream{
 				"stream-1": {
-					ID:        "stream-1",
-					ChannelID: "channel-1",
-					Status:    StreamStatusRunning,
+					PublicStream: PublicStream{
+						ID:        "stream-1",
+						ChannelID: "channel-1",
+						Status:    StreamStatusRunning,
+					},
 				},
 			},
 		}
@@ -449,9 +469,11 @@ func TestStopStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "user-1",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -472,9 +494,11 @@ func TestStopStream(t *testing.T) {
 		store := &fakeLiveStore{
 			streams: map[string]*Stream{
 				"stream-1": {
-					ID:        "stream-1",
-					ChannelID: "channel-1",
-					Status:    StreamStatusRunning,
+					PublicStream: PublicStream{
+						ID:        "stream-1",
+						ChannelID: "channel-1",
+						Status:    StreamStatusRunning,
+					},
 				},
 			},
 		}
@@ -483,9 +507,11 @@ func TestStopStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "owner-user",
-					Slug:   "test-channel",
 				},
 			},
 		}
@@ -508,9 +534,11 @@ func TestStopStream(t *testing.T) {
 		store := &fakeLiveStore{
 			streams: map[string]*Stream{
 				"stream-1": {
-					ID:        "stream-1",
-					ChannelID: "channel-1",
-					Status:    StreamStatusRunning,
+					PublicStream: PublicStream{
+						ID:        "stream-1",
+						ChannelID: "channel-1",
+						Status:    StreamStatusRunning,
+					},
 				},
 			},
 		}
@@ -519,9 +547,11 @@ func TestStopStream(t *testing.T) {
 		channels := &fakeChannelGetter{
 			channels: map[string]*channel.Channel{
 				"channel-1": {
-					ID:     "channel-1",
+					PublicChannel: channel.PublicChannel{
+						ID:   "channel-1",
+						Slug: "test-channel",
+					},
 					UserID: "user-1",
-					Slug:   "test-channel",
 				},
 			},
 		}

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 
 	"stream-platform/internal/channel"
@@ -17,6 +18,7 @@ type Server struct {
 	userService    *user.Service
 	store          *storage.Store
 	hookSecret     string
+	db             Pinger
 }
 
 func NewServer(
@@ -26,6 +28,7 @@ func NewServer(
 	userService *user.Service,
 	store *storage.Store,
 	hookSecret string,
+	db Pinger,
 ) *Server {
 	return &Server{
 		liveService:    liveService,
@@ -34,11 +37,18 @@ func NewServer(
 		userService:    userService,
 		store:          store,
 		hookSecret:     hookSecret,
+		db:             db,
 	}
 }
+
+type Pinger interface {
+	Ping(ctx context.Context) error
+}
+
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
+	s.registerHealthRoutes(mux)
 	s.registerAuthRoutes(mux)
 	s.registerAPIRoutes(mux)
 	s.registerPublicRoutes(mux)

@@ -48,7 +48,11 @@ func (s *Server) createLiveStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, stream)
+	writePrivileged(
+		w,
+		http.StatusCreated,
+		allowPrivileged("stream owner needs stream_key and rtmp_url to publish", stream),
+	)
 }
 
 func (s *Server) startLiveStream(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +84,7 @@ func (s *Server) startLiveStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, map[string]string{
+	writeRawJSON(w, http.StatusAccepted, map[string]string{
 		"status": "started",
 		"id":     req.ID,
 	})
@@ -114,7 +118,7 @@ func (s *Server) stopLiveStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
+	writeRawJSON(w, http.StatusOK, map[string]string{
 		"status": "stopped",
 		"id":     id,
 	})
@@ -127,5 +131,5 @@ func (s *Server) listLiveStreams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, streams)
+	writePublicList(w, http.StatusOK, streams)
 }

@@ -66,12 +66,13 @@ func (s *Service) CreateStream(ctx context.Context, userID string, channelID str
 	}
 
 	stream := &Stream{
-		ID:        uuid.NewString(),
-		ChannelID: channelID,
+		PublicStream: PublicStream{
+			ID:        uuid.NewString(),
+			ChannelID: channelID,
+			Status:    StreamStatusCreated,
+		},
 		StreamKey: streamKey,
-		Status:    StreamStatusCreated,
 	}
-
 	if err := s.store.Create(ctx, stream); err != nil {
 		return nil, err
 	}

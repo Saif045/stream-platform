@@ -136,8 +136,11 @@ func TestLogin(t *testing.T) {
 		store := &fakeUserStore{
 			users: map[string]*User{
 				"seif": {
-					ID:           "user-1",
-					Username:     "seif",
+					PublicUser: PublicUser{
+						ID:       "user-1",
+						Username: "seif",
+					},
+
 					PasswordHash: passwordHash,
 				},
 			},
@@ -175,8 +178,11 @@ func TestLogin(t *testing.T) {
 		store := &fakeUserStore{
 			users: map[string]*User{
 				"seif": {
-					ID:           "user-1",
-					Username:     "seif",
+					PublicUser: PublicUser{
+						ID:       "user-1",
+						Username: "seif",
+					},
+
 					PasswordHash: passwordHash,
 				},
 			},
@@ -194,8 +200,10 @@ func TestLogin(t *testing.T) {
 		store := &fakeUserStore{
 			users: map[string]*User{
 				"seif": {
-					ID:           "user-1",
-					Username:     "seif",
+					PublicUser: PublicUser{
+						ID:       "user-1",
+						Username: "seif",
+					},
 					PasswordHash: "not-a-valid-bcrypt-hash",
 				},
 			},

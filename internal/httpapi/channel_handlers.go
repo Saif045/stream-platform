@@ -38,7 +38,7 @@ func (s *Server) createChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, ch)
+	writePublic(w, http.StatusCreated, ch)
 }
 
 func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func (s *Server) listChannels(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, channels)
+	writePublicList(w, http.StatusOK, channels)
 }
 
 func (s *Server) listChannelStreams(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +64,8 @@ func (s *Server) listChannelStreams(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, streams)
+	writePublicList(w, http.StatusOK, streams)
+
 }
 
 func (s *Server) listChannelStreamsBySlug(w http.ResponseWriter, r *http.Request) {
@@ -91,5 +92,6 @@ func (s *Server) listChannelStreamsBySlug(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, streams)
+	writePublicList(w, http.StatusOK, streams)
+
 }

@@ -11,19 +11,32 @@ const (
 	StreamStatusFailed  StreamStatus = "failed"
 )
 
-type Stream struct {
+type PublicStream struct {
 	ID        string       `json:"id"`
 	ChannelID string       `json:"channel_id"`
-	StreamKey string       `json:"stream_key,omitempty"`
 	Status    StreamStatus `json:"status"`
-	Error     string       `json:"error,omitempty"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	StartedAt *time.Time `json:"started_at,omitempty"`
 	StoppedAt *time.Time `json:"stopped_at,omitempty"`
 
-	RTMPURL   string `json:"rtmp_url"`
-	OutputDir string `json:"output_dir"`
-	LiveURL   string `json:"live_url"`
-	VODURL    string `json:"vod_url"`
+	LiveURL string `json:"live_url,omitempty"`
+	VODURL  string `json:"vod_url,omitempty"`
+}
+
+type Stream struct {
+	PublicStream
+
+	StreamKey string `json:"stream_key,omitempty"`
+	Error     string `json:"error,omitempty"`
+	OutputDir string `json:"-"`
+	RTMPURL   string `json:"rtmp_url,omitempty"`
+}
+
+func (s *Stream) Public() any {
+	if s == nil {
+		return nil
+	}
+
+	return s.PublicStream
 }

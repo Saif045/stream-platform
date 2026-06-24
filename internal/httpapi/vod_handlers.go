@@ -9,7 +9,7 @@ func (s *Server) listVODs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, vods)
+	writePublicList(w, http.StatusOK, vods)
 }
 
 func (s *Server) getVOD(w http.ResponseWriter, r *http.Request) {
@@ -25,5 +25,5 @@ func (s *Server) getVOD(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, vod)
+	writePublic(w, http.StatusOK, vod)
 }

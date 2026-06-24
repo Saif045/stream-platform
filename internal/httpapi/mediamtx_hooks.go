@@ -29,7 +29,7 @@ func (s *Server) mediaMTXReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
+	writeRawJSON(w, http.StatusOK, map[string]string{
 		"status":     "started",
 		"stream_key": streamKey,
 	})
@@ -54,7 +54,7 @@ func (s *Server) mediaMTXNotReady(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
+	writeRawJSON(w, http.StatusOK, map[string]string{
 		"status":     "stopped",
 		"stream_key": streamKey,
 	})

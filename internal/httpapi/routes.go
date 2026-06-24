@@ -82,3 +82,7 @@ func (s *Server) registerFileRoutes(mux *http.ServeMux) {
 		http.StripPrefix("/streams/", fileServer),
 	)
 }
+func (s *Server) registerHealthRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.HandleFunc("GET /readyz", s.readyz)
+}

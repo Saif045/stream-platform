@@ -40,10 +40,11 @@ func (s *Service) Register(ctx context.Context, username string, password string
 	if err != nil {
 		return nil, fmt.Errorf("hash password: %w", err)
 	}
-
 	user := &User{
-		ID:           uuid.NewString(),
-		Username:     username,
+		PublicUser: PublicUser{
+			ID:       uuid.NewString(),
+			Username: username,
+		},
 		PasswordHash: string(passwordHash),
 	}
 

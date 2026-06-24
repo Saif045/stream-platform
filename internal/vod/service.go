@@ -8,19 +8,6 @@ import (
 	"stream-platform/internal/storage"
 )
 
-type VODStatus string
-
-const (
-	VODStatusGrowing VODStatus = "growing"
-	VODStatusReady   VODStatus = "ready"
-)
-
-type VOD struct {
-	ID          string    `json:"id"`
-	Status      VODStatus `json:"status"`
-	PlaylistURL string    `json:"playlist_url"`
-}
-
 type Service struct {
 	paths *storage.Store
 }
@@ -46,9 +33,10 @@ func (s *Service) Get(id string) (*VOD, error) {
 	}
 
 	return &VOD{
-		ID:          id,
-		Status:      status,
-		PlaylistURL: "/streams/" + id + "/vod/master.m3u8",
+		PublicVOD: PublicVOD{
+			ID:          id,
+			Status:      status,
+			PlaylistURL: "/streams/" + id + "/vod/master.m3u8"},
 	}, nil
 }
 

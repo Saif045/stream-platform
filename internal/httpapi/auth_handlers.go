@@ -42,7 +42,7 @@ func (s *Server) registerUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, createdUser)
+	writePublic(w, http.StatusCreated, createdUser)
 }
 
 func (s *Server) loginUser(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +59,7 @@ func (s *Server) loginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, loginResponse{
+	writeRawJSON(w, http.StatusOK, loginResponse{
 		Token: token,
 	})
 }
@@ -71,7 +71,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
+	writeRawJSON(w, http.StatusOK, map[string]string{
 		"user_id": userID,
 	})
 }

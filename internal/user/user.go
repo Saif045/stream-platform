@@ -2,9 +2,22 @@ package user
 
 import "time"
 
+type PublicUser struct {
+	ID        string    `json:"id"`
+	Username  string    `json:"username"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type User struct {
-	ID           string    `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"-"`
-	CreatedAt    time.Time `json:"created_at"`
+	PublicUser
+
+	PasswordHash string `json:"-"`
+}
+
+func (u *User) Public() any {
+	if u == nil {
+		return nil
+	}
+
+	return u.PublicUser
 }

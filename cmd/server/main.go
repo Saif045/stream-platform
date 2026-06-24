@@ -54,7 +54,7 @@ func main() {
 	userStore := user.NewPostgresStore(db)
 	userService := user.NewService(userStore)
 
-	server := httpapi.NewServer(liveService, vodService, channelService, userService, store, cfg.HookSecret)
+	server := httpapi.NewServer(liveService, vodService, channelService, userService, store, cfg.HookSecret, db)
 
 	fmt.Println("server listening on", cfg.HTTPAddr)
 

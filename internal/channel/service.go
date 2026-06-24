@@ -41,9 +41,11 @@ func (s *Service) Create(ctx context.Context, userID string, slug string) (*Chan
 	}
 
 	channel := &Channel{
-		ID:     uuid.NewString(),
+		PublicChannel: PublicChannel{
+			ID:   uuid.NewString(),
+			Slug: slug,
+		},
 		UserID: userID,
-		Slug:   slug,
 	}
 
 	if err := s.store.Create(ctx, channel); err != nil {
